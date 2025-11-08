@@ -53,19 +53,19 @@ export default function ChatPlayground() {
   };
 
   return (
-    <div className="flex-1 flex h-screen overflow-hidden">
-      <div className="flex-1 flex flex-col">
-        <div className="p-4 border-b">
+    <div className="flex flex-1 h-full overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="p-4 border-b shrink-0">
           <h1 className="text-2xl font-semibold" data-testid="text-page-title">Chat Playground</h1>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
           {messages.map((message, index) => (
             <ChatMessage key={index} {...message} />
           ))}
         </div>
 
-        <div className="p-4 border-t">
+        <div className="p-4 border-t shrink-0">
           <div className="flex gap-2">
             <Textarea
               placeholder="Type your message..."
