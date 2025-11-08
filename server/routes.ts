@@ -3,7 +3,6 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertAgentSchema, insertToolSchema } from "@shared/schema";
 import Anthropic from "@anthropic-ai/sdk";
-import { GoogleGenerativeAI } from "@google/genai";
 import OpenAI from "openai";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -169,16 +168,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         response = completion.content[0].type === "text" ? completion.content[0].text : "";
       } else if (agent.provider === "google") {
-        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-        const model = genAI.getGenerativeModel({ model: agent.model });
-        const chat = model.startChat({
-          history: messages.slice(0, -1).map((m: any) => ({
-            role: m.role === "user" ? "user" : "model",
-            parts: [{ text: m.content }],
-          })),
-        });
-        const result = await chat.sendMessage(message);
-        response = result.response.text();
+        return res.status(501).json({ error: "Google Gemini support is coming soon. Please use OpenAI or Anthropic for now." });
       } else {
         return res.status(400).json({ error: "Unsupported provider" });
       }
