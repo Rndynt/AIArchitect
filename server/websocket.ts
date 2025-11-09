@@ -4,7 +4,17 @@ import { CodingAgent } from "./ai/agent";
 import { storage } from "./storage";
 
 export function setupWebSocket(httpServer: HTTPServer) {
-  const wss = new WebSocketServer({ server: httpServer });
+  const wss = new WebSocketServer({ noServer: true });
+
+  httpServer.on('upgrade', (request, socket, head) => {
+    const { pathname } = new URL(request.url!, `http://${request.headers.host}`);
+    
+    if (pathname === '/agent-ws') {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request);
+      });
+    }
+  });
 
   wss.on("connection", (ws: WebSocket) => {
     console.log("[WebSocket] Client connected");
