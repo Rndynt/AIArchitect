@@ -5,7 +5,14 @@ export const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-export const OPENAI_MODEL = "gpt-4-turbo-preview";
+export const OPENAI_MODELS = {
+  "gpt-4o": "GPT-4o",
+  "gpt-4o-mini": "GPT-4o Mini",
+  "gpt-4-turbo": "GPT-4 Turbo",
+  "gpt-4": "GPT-4"
+} as const;
+
+export const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4-turbo";
 
 export async function createChatCompletion(
   messages: ChatCompletionMessageParam[],

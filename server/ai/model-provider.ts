@@ -2,10 +2,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import type { ChatCompletionMessageParam, ChatCompletionTool } from "openai/resources/chat/completions";
 import { anthropic, CODING_AGENT_MODEL, SYSTEM_PROMPT } from "./anthropic-client";
-import { openai, OPENAI_MODEL } from "./openai-client";
+import { openai, OPENAI_MODEL, OPENAI_MODELS } from "./openai-client";
+import { gemini, GEMINI_MODEL, GEMINI_MODELS } from "./gemini-client";
 import { toolDefinitions as anthropicTools } from "./tool-definitions";
 
-export type ModelProvider = "anthropic" | "openai";
+export type ModelProvider = "anthropic" | "openai" | "gemini";
 
 export interface ProviderMessage {
   role: "user" | "assistant";
@@ -101,6 +102,103 @@ function convertAnthropicMessagesToOpenAI(messages: Anthropic.MessageParam[]): C
   return openaiMessages;
 }
 
+function convertToolsToGemini(anthropicTools: Anthropic.Tool[]): any[] {
+  return anthropicTools.map(tool => ({
+    name: tool.name,
+    description: tool.description,
+    parameters: tool.input_schema as any
+  }));
+}
+
+function convertAnthropicMessagesToGemini(messages: Anthropic.MessageParam[]) {
+  const geminiMessages: any[] = [];
+  
+  for (const msg of messages) {
+    if (msg.role === "user") {
+      if (typeof msg.content === "string") {
+        geminiMessages.push({
+          role: "user",
+          parts: [{ text: msg.content }]
+        });
+      } else {
+        const textBlocks = msg.content.filter((block: any) => block.type === "text");
+        const toolResultBlocks = msg.content.filter(
+          (block: any): block is Anthropic.ToolResultBlockParam => block.type === "tool_result"
+        );
+        
+        const parts: any[] = [];
+        
+        // Add text parts
+        for (const textBlock of textBlocks) {
+          if ('text' in textBlock) {
+            parts.push({ text: textBlock.text });
+          }
+        }
+        
+        // Add function response parts
+        for (const toolResult of toolResultBlocks) {
+          parts.push({
+            functionResponse: {
+              name: toolResult.tool_use_id,
+              response: typeof toolResult.content === "string" 
+                ? { result: toolResult.content }
+                : toolResult.content
+            }
+          });
+        }
+        
+        if (parts.length > 0) {
+          geminiMessages.push({
+            role: "user",
+            parts
+          });
+        }
+      }
+    } else {
+      // Assistant message
+      if (typeof msg.content === "string") {
+        geminiMessages.push({
+          role: "model",
+          parts: [{ text: msg.content }]
+        });
+      } else {
+        const textBlocks = msg.content.filter((block: any) => block.type === "text");
+        const toolBlocks = msg.content.filter((block: any) => block.type === "tool_use");
+        
+        const parts: any[] = [];
+        
+        // Add text parts
+        for (const textBlock of textBlocks) {
+          if ('text' in textBlock) {
+            parts.push({ text: textBlock.text });
+          }
+        }
+        
+        // Add function call parts
+        for (const toolBlock of toolBlocks) {
+          if ('name' in toolBlock && 'input' in toolBlock) {
+            parts.push({
+              functionCall: {
+                name: toolBlock.name,
+                args: toolBlock.input
+              }
+            });
+          }
+        }
+        
+        if (parts.length > 0) {
+          geminiMessages.push({
+            role: "model",
+            parts
+          });
+        }
+      }
+    }
+  }
+  
+  return geminiMessages;
+}
+
 export class ModelProviderService {
   private provider: ModelProvider;
 
@@ -117,8 +215,10 @@ export class ModelProviderService {
   ): Promise<ProviderResponse> {
     if (this.provider === "anthropic") {
       return await this.generateAnthropicResponse(messages);
-    } else {
+    } else if (this.provider === "openai") {
       return await this.generateOpenAIResponse(messages);
+    } else {
+      return await this.generateGeminiResponse(messages);
     }
   }
 
@@ -194,8 +294,63 @@ export class ModelProviderService {
     };
   }
 
+  private async generateGeminiResponse(
+    messages: Anthropic.MessageParam[]
+  ): Promise<ProviderResponse> {
+    const geminiMessages = convertAnthropicMessagesToGemini(messages);
+    const geminiTools = convertToolsToGemini(anthropicTools);
+
+    // Build the contents array from all messages
+    const contents: any[] = [];
+    for (const msg of geminiMessages) {
+      contents.push({
+        role: msg.role,
+        parts: msg.parts
+      });
+    }
+
+    const response = await gemini.models.generateContent({
+      model: GEMINI_MODEL,
+      contents,
+      config: {
+        systemInstruction: SYSTEM_PROMPT,
+        tools: [{
+          functionDeclarations: geminiTools
+        }]
+      }
+    });
+
+    const text = response.text || "";
+    
+    const toolCalls: ProviderToolCall[] = [];
+    const functionCalls = response.functionCalls || [];
+    
+    for (const fc of functionCalls) {
+      if (fc.name) {
+        toolCalls.push({
+          id: `gemini_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          name: fc.name,
+          input: fc.args
+        });
+      }
+    }
+
+    return {
+      content: text,
+      toolCalls,
+      stopReason: "STOP",
+      rawResponse: response
+    };
+  }
+
   getProviderName(): string {
-    return this.provider === "anthropic" ? "Claude 3.5 Sonnet" : "GPT-4 Turbo";
+    if (this.provider === "anthropic") {
+      return "Claude 3.5 Sonnet";
+    } else if (this.provider === "openai") {
+      return OPENAI_MODELS[OPENAI_MODEL as keyof typeof OPENAI_MODELS] || OPENAI_MODEL;
+    } else {
+      return GEMINI_MODELS[GEMINI_MODEL as keyof typeof GEMINI_MODELS] || GEMINI_MODEL;
+    }
   }
 
   getProvider(): ModelProvider {
