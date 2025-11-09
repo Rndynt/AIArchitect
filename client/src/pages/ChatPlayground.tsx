@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Send, PlusCircle, Loader2, Bot } from "lucide-react";
+import { Send, PlusCircle, Loader2, Bot, Menu, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useWebSocket, ModelProvider } from "@/hooks/useWebSocket";
 
@@ -26,6 +26,7 @@ export default function ChatPlayground() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentModel, setCurrentModel] = useState<ModelProvider>("anthropic");
   const [currentModelName, setCurrentModelName] = useState<string>("Claude 3.5 Sonnet");
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastProcessedIndexRef = useRef(0);
   
@@ -149,6 +150,15 @@ export default function ChatPlayground() {
               </Badge>
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                size="icon"
+                variant="outline"
+                className="lg:hidden"
+                onClick={() => setIsMobileSidebarOpen(true)}
+                data-testid="button-mobile-menu"
+              >
+                <Menu className="h-4 w-4" />
+              </Button>
               <Select 
                 value={currentModel} 
                 onValueChange={(value) => handleModelChange(value as ModelProvider)}
@@ -165,11 +175,12 @@ export default function ChatPlayground() {
               <Badge 
                 variant={isConnected ? "default" : "destructive"} 
                 data-testid="badge-connection-status"
+                className="hidden sm:inline-flex"
               >
                 {isConnected ? "Connected" : "Disconnected"}
               </Badge>
               {sessionId && (
-                <Badge variant="outline" data-testid="badge-session-id">
+                <Badge variant="outline" data-testid="badge-session-id" className="hidden md:inline-flex">
                   Session: {sessionId.slice(0, 8)}
                 </Badge>
               )}
@@ -234,7 +245,31 @@ export default function ChatPlayground() {
         </div>
       </div>
 
-      <div className="w-80 border-l p-4 space-y-4 overflow-y-auto">
+      {isMobileSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setIsMobileSidebarOpen(false)}
+          data-testid="overlay-mobile-sidebar"
+        />
+      )}
+
+      <div className={`
+        ${isMobileSidebarOpen ? 'fixed inset-y-0 right-0 z-50 w-80' : 'hidden'}
+        lg:block lg:relative lg:w-80
+        border-l p-4 space-y-4 overflow-y-auto bg-background
+      `}>
+        <div className="flex items-center justify-between mb-4 lg:hidden">
+          <h2 className="font-semibold">Menu</h2>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => setIsMobileSidebarOpen(false)}
+            data-testid="button-close-mobile-sidebar"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Session</CardTitle>

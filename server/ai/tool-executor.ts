@@ -1,6 +1,7 @@
 import { readFile, writeFile, editFile, deleteFile, listFiles, getFileStructure } from "../tools/file-tools";
 import { bashCommand, installNpmPackage, installPipPackage } from "../tools/bash-tools";
 import { searchCodebase, grepFiles, getFileInfo } from "../tools/search-tools";
+import { gitStatus, gitDiff, gitCommit } from "../tools/git-tools";
 
 export async function executeTool(toolName: string, input: any): Promise<any> {
   const startTime = Date.now();
@@ -55,6 +56,18 @@ export async function executeTool(toolName: string, input: any): Promise<any> {
       
       case "get_file_info":
         result = await getFileInfo(input.file_path);
+        break;
+      
+      case "git_status":
+        result = await gitStatus();
+        break;
+      
+      case "git_diff":
+        result = await gitDiff(input.file_path);
+        break;
+      
+      case "git_commit":
+        result = await gitCommit(input.message);
         break;
       
       default:

@@ -208,5 +208,42 @@ export const toolDefinitions: Anthropic.Tool[] = [
       },
       required: ["file_path"]
     }
+  },
+  {
+    name: "git_status",
+    description: "Get the current git repository status. Shows which files are modified, staged, or untracked. Uses 'git status --porcelain' for machine-readable output.",
+    input_schema: {
+      type: "object",
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: "git_diff",
+    description: "Show uncommitted changes in the repository. Can optionally show diff for a specific file. Useful for reviewing changes before committing.",
+    input_schema: {
+      type: "object",
+      properties: {
+        file_path: {
+          type: "string",
+          description: "Optional path to a specific file to show diff for. If not provided, shows diff for all files."
+        }
+      },
+      required: []
+    }
+  },
+  {
+    name: "git_commit",
+    description: "Commit all changes with a message. Runs 'git add -A' to stage all changes, then commits with the provided message. Use git_status first to check what will be committed.",
+    input_schema: {
+      type: "object",
+      properties: {
+        message: {
+          type: "string",
+          description: "Commit message describing the changes (required, max 500 characters)"
+        }
+      },
+      required: ["message"]
+    }
   }
 ];

@@ -12,7 +12,7 @@ export const OPENAI_MODELS = {
   "gpt-4": "GPT-4"
 } as const;
 
-export const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4-turbo";
+export const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
 export async function createChatCompletion(
   messages: ChatCompletionMessageParam[],
