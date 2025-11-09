@@ -1,29 +1,51 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { anthropic, CODING_AGENT_MODEL, SYSTEM_PROMPT } from "./anthropic-client";
-import { toolDefinitions } from "./tool-definitions";
 import { executeTool } from "./tool-executor";
 import { storage } from "../storage";
+import { ModelProviderService, ModelProvider } from "./model-provider";
 
 export interface AgentEvent {
-  type: "thinking" | "tool_use" | "tool_result" | "response" | "complete" | "error";
+  type: "thinking" | "tool_use" | "tool_result" | "response" | "complete" | "error" | "model_info";
   content?: string;
   tool?: string;
   input?: any;
   result?: any;
   error?: string;
+  modelProvider?: string;
+  modelName?: string;
 }
 
 export class CodingAgent {
   private sessionId: string;
   private conversationHistory: Anthropic.MessageParam[];
   private maxIterations: number = 50;
+  private modelProvider: ModelProviderService;
 
-  constructor(sessionId: string) {
+  constructor(sessionId: string, provider: ModelProvider = "anthropic") {
     this.sessionId = sessionId;
     this.conversationHistory = [];
+    this.modelProvider = new ModelProviderService(provider);
+  }
+
+  setModelProvider(provider: ModelProvider) {
+    this.modelProvider.setProvider(provider);
+  }
+
+  getModelInfo() {
+    return {
+      provider: this.modelProvider.getProvider(),
+      name: this.modelProvider.getProviderName()
+    };
   }
 
   async *processMessage(userMessage: string): AsyncIterableIterator<AgentEvent> {
+    // Send model info at start
+    const modelInfo = this.getModelInfo();
+    yield {
+      type: "model_info",
+      modelProvider: modelInfo.provider,
+      modelName: modelInfo.name
+    };
+
     await storage.addMessage({
       sessionId: this.sessionId,
       role: "user",
@@ -39,50 +61,31 @@ export class CodingAgent {
 
     while (iterations < this.maxIterations) {
       iterations++;
-      console.log(`[Agent] Iteration ${iterations}/${this.maxIterations}`);
+      console.log(`[Agent] Iteration ${iterations}/${this.maxIterations} using ${modelInfo.name}`);
 
       try {
-        const response = await anthropic.messages.create({
-          model: CODING_AGENT_MODEL,
-          max_tokens: 4096,
-          system: SYSTEM_PROMPT,
-          messages: this.conversationHistory,
-          tools: toolDefinitions,
-        });
+        const response = await this.modelProvider.generateResponse(this.conversationHistory);
 
-        console.log(`[Agent] Response stop_reason: ${response.stop_reason}`);
+        console.log(`[Agent] Response stop_reason: ${response.stopReason}`);
 
-        const textBlocks = response.content.filter(
-          (block): block is Anthropic.TextBlock => block.type === "text"
-        );
-        
-        for (const textBlock of textBlocks) {
-          if (textBlock.text.trim()) {
-            yield {
-              type: "thinking",
-              content: textBlock.text
-            };
-          }
+        if (response.content.trim()) {
+          yield {
+            type: "thinking",
+            content: response.content
+          };
         }
 
-        const toolUseBlocks = response.content.filter(
-          (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
-        );
-
-        if (toolUseBlocks.length === 0) {
+        if (response.toolCalls.length === 0) {
           await storage.addMessage({
             sessionId: this.sessionId,
             role: "assistant",
-            content: response.content.map(b => 
-              b.type === "text" ? b.text : JSON.stringify(b)
-            ).join("\n")
+            content: response.content
           });
 
-          const finalText = textBlocks.map(b => b.text).join("\n");
-          if (finalText.trim()) {
+          if (response.content.trim()) {
             yield {
               type: "response",
-              content: finalText
+              content: response.content
             };
           }
 
@@ -90,18 +93,48 @@ export class CodingAgent {
           break;
         }
 
-        this.conversationHistory.push({
-          role: "assistant",
-          content: response.content
-        });
+        // Store assistant message with tool calls in Anthropic format
+        if (this.modelProvider.getProvider() === "anthropic") {
+          // For Anthropic, use the raw response content
+          this.conversationHistory.push({
+            role: "assistant",
+            content: response.rawResponse.content
+          });
+        } else {
+          // For OpenAI, convert to Anthropic-compatible format
+          const contentBlocks: (Anthropic.TextBlockParam | Anthropic.ToolUseBlockParam)[] = [];
+          
+          // Add text content if present
+          if (response.content) {
+            contentBlocks.push({
+              type: "text",
+              text: response.content
+            });
+          }
+          
+          // Add tool use blocks
+          for (const toolCall of response.toolCalls) {
+            contentBlocks.push({
+              type: "tool_use",
+              id: toolCall.id,
+              name: toolCall.name,
+              input: toolCall.input
+            });
+          }
+          
+          this.conversationHistory.push({
+            role: "assistant",
+            content: contentBlocks
+          });
+        }
 
         const toolResults: Anthropic.ToolResultBlockParam[] = [];
 
-        for (const toolUse of toolUseBlocks) {
+        for (const toolCall of response.toolCalls) {
           yield {
             type: "tool_use",
-            tool: toolUse.name,
-            input: toolUse.input
+            tool: toolCall.name,
+            input: toolCall.input
           };
 
           const startTime = Date.now();
@@ -109,7 +142,7 @@ export class CodingAgent {
           let success = true;
 
           try {
-            result = await executeTool(toolUse.name, toolUse.input);
+            result = await executeTool(toolCall.name, toolCall.input);
             success = result.success !== false;
           } catch (error: any) {
             result = {
@@ -123,8 +156,8 @@ export class CodingAgent {
 
           await storage.logToolExecution({
             sessionId: this.sessionId,
-            toolName: toolUse.name,
-            input: toolUse.input as any,
+            toolName: toolCall.name,
+            input: toolCall.input as any,
             output: result as any,
             duration,
             success
@@ -132,13 +165,13 @@ export class CodingAgent {
 
           yield {
             type: "tool_result",
-            tool: toolUse.name,
+            tool: toolCall.name,
             result
           };
 
           toolResults.push({
             type: "tool_result",
-            tool_use_id: toolUse.id,
+            tool_use_id: toolCall.id,
             content: JSON.stringify(result)
           });
         }

@@ -4,23 +4,28 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Send, PlusCircle, Loader2 } from "lucide-react";
-import { useWebSocket } from "@/hooks/useWebSocket";
+import { Send, PlusCircle, Loader2, Bot } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useWebSocket, ModelProvider } from "@/hooks/useWebSocket";
 
 interface DisplayMessage {
   id: string;
-  type: "user" | "thinking" | "tool_use" | "tool_result" | "response" | "error";
+  type: "user" | "thinking" | "tool_use" | "tool_result" | "response" | "error" | "model_info";
   content?: string;
   tool?: string;
   input?: any;
   result?: any;
   error?: string;
+  modelProvider?: string;
+  modelName?: string;
 }
 
 export default function ChatPlayground() {
   const [displayMessages, setDisplayMessages] = useState<DisplayMessage[]>([]);
   const [input, setInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [currentModel, setCurrentModel] = useState<ModelProvider>("anthropic");
+  const [currentModelName, setCurrentModelName] = useState<string>("Claude 3.5 Sonnet");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastProcessedIndexRef = useRef(0);
   
@@ -30,15 +35,16 @@ export default function ChatPlayground() {
     sessionId,
     startSession,
     sendUserMessage,
-    clearMessages
+    clearMessages,
+    changeModel
   } = useWebSocket();
 
   useEffect(() => {
     if (isConnected && !sessionId) {
       console.log("[ChatPlayground] Starting new session");
-      startSession();
+      startSession(undefined, undefined, currentModel);
     }
-  }, [isConnected, sessionId, startSession]);
+  }, [isConnected, sessionId, startSession, currentModel]);
 
   useEffect(() => {
     // If messages array is smaller than last processed index, reset (e.g., after clearMessages)
@@ -51,6 +57,18 @@ export default function ChatPlayground() {
     
     newMessages.forEach((wsMsg) => {
       if (wsMsg.type === "session_started" || wsMsg.type === "session_resumed") {
+        return;
+      }
+
+      if (wsMsg.type === "model_info") {
+        setCurrentModel(wsMsg.modelProvider);
+        setCurrentModelName(wsMsg.modelName);
+        return;
+      }
+
+      if (wsMsg.type === "model_changed") {
+        setCurrentModel(wsMsg.modelProvider);
+        setCurrentModelName(wsMsg.modelName);
         return;
       }
 
@@ -69,7 +87,9 @@ export default function ChatPlayground() {
           tool: wsMsg.tool,
           input: wsMsg.input,
           result: wsMsg.result,
-          error: wsMsg.error
+          error: wsMsg.error,
+          modelProvider: wsMsg.modelProvider,
+          modelName: wsMsg.modelName
         };
         return [...prev, newMsg];
       });
@@ -106,7 +126,14 @@ export default function ChatPlayground() {
     setDisplayMessages([]);
     clearMessages();
     setIsProcessing(false);
-    startSession();
+    startSession(undefined, undefined, currentModel);
+  };
+
+  const handleModelChange = (newModel: ModelProvider) => {
+    if (sessionId && !isProcessing) {
+      changeModel(newModel);
+      setCurrentModel(newModel);
+    }
   };
 
   return (
@@ -114,8 +141,27 @@ export default function ChatPlayground() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="p-4 border-b shrink-0">
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <h1 className="text-2xl font-semibold" data-testid="text-page-title">Chat Playground</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-semibold" data-testid="text-page-title">Chat Playground</h1>
+              <Badge variant="outline" data-testid="badge-model-name" className="gap-1">
+                <Bot className="h-3 w-3" />
+                {currentModelName}
+              </Badge>
+            </div>
             <div className="flex items-center gap-2">
+              <Select 
+                value={currentModel} 
+                onValueChange={(value) => handleModelChange(value as ModelProvider)}
+                disabled={isProcessing}
+              >
+                <SelectTrigger className="w-48" data-testid="select-model">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="anthropic">Claude 3.5 Sonnet</SelectItem>
+                  <SelectItem value="openai">GPT-4 Turbo</SelectItem>
+                </SelectContent>
+              </Select>
               <Badge 
                 variant={isConnected ? "default" : "destructive"} 
                 data-testid="badge-connection-status"
@@ -140,9 +186,14 @@ export default function ChatPlayground() {
               </div>
             </div>
           )}
-          {displayMessages.map((message) => (
-            <ChatMessage key={message.id} {...message} />
-          ))}
+          {displayMessages
+            .filter((message): message is Omit<DisplayMessage, "type"> & { type: Exclude<DisplayMessage["type"], "model_info"> } => 
+              message.type !== "model_info"
+            )
+            .map((message) => (
+              <ChatMessage key={message.id} {...message} />
+            ))
+          }
           {isProcessing && displayMessages.length > 0 && (
             <div className="flex gap-3 justify-start">
               <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary shrink-0">

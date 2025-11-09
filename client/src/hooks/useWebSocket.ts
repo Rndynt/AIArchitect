@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
+export type ModelProvider = "anthropic" | "openai";
+
 interface WebSocketMessage {
-  type: "session_started" | "session_resumed" | "thinking" | "tool_use" | "tool_result" | "response" | "complete" | "error" | "sessions_list" | "session_history";
+  type: "session_started" | "session_resumed" | "thinking" | "tool_use" | "tool_result" | "response" | "complete" | "error" | "sessions_list" | "session_history" | "model_changed" | "model_info";
   [key: string]: any;
 }
 
@@ -63,18 +65,27 @@ export function useWebSocket() {
     }
   }, []);
 
-  const startSession = useCallback((userId?: string, projectPath?: string) => {
+  const startSession = useCallback((userId?: string, projectPath?: string, modelProvider?: ModelProvider) => {
     sendMessage({
       type: "start_session",
       userId,
-      projectPath
+      projectPath,
+      modelProvider: modelProvider || "anthropic"
     });
   }, [sendMessage]);
 
-  const resumeSession = useCallback((sessionId: string) => {
+  const resumeSession = useCallback((sessionId: string, modelProvider?: ModelProvider) => {
     sendMessage({
       type: "resume_session",
-      sessionId
+      sessionId,
+      modelProvider: modelProvider || "anthropic"
+    });
+  }, [sendMessage]);
+
+  const changeModel = useCallback((modelProvider: ModelProvider) => {
+    sendMessage({
+      type: "change_model",
+      modelProvider
     });
   }, [sendMessage]);
 
@@ -116,6 +127,7 @@ export function useWebSocket() {
     sendUserMessage,
     getSessions,
     getSessionHistory,
-    clearMessages
+    clearMessages,
+    changeModel
   };
 }

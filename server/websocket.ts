@@ -1,6 +1,7 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { Server as HTTPServer } from "http";
 import { CodingAgent } from "./ai/agent";
+import { ModelProvider } from "./ai/model-provider";
 import { storage } from "./storage";
 
 export function setupWebSocket(httpServer: HTTPServer) {
@@ -33,15 +34,17 @@ export function setupWebSocket(httpServer: HTTPServer) {
             projectPath: message.projectPath || null
           });
 
+          const modelProvider: ModelProvider = message.modelProvider || "anthropic";
           currentSessionId = session.id;
-          agent = new CodingAgent(session.id);
+          agent = new CodingAgent(session.id, modelProvider);
 
           ws.send(JSON.stringify({
             type: "session_started",
-            sessionId: session.id
+            sessionId: session.id,
+            modelProvider
           }));
 
-          console.log(`[WebSocket] Session started: ${session.id}`);
+          console.log(`[WebSocket] Session started: ${session.id} with model: ${modelProvider}`);
         } else if (message.type === "resume_session") {
           if (!message.sessionId) {
             ws.send(JSON.stringify({
@@ -60,16 +63,18 @@ export function setupWebSocket(httpServer: HTTPServer) {
             return;
           }
 
+          const modelProvider: ModelProvider = message.modelProvider || "anthropic";
           currentSessionId = session.id;
-          agent = new CodingAgent(session.id);
+          agent = new CodingAgent(session.id, modelProvider);
           await agent.loadFromSession();
 
           ws.send(JSON.stringify({
             type: "session_resumed",
-            sessionId: session.id
+            sessionId: session.id,
+            modelProvider
           }));
 
-          console.log(`[WebSocket] Session resumed: ${session.id}`);
+          console.log(`[WebSocket] Session resumed: ${session.id} with model: ${modelProvider}`);
         } else if (message.type === "user_message") {
           if (!agent) {
             ws.send(JSON.stringify({
@@ -98,6 +103,25 @@ export function setupWebSocket(httpServer: HTTPServer) {
             type: "sessions_list",
             sessions
           }));
+        } else if (message.type === "change_model") {
+          if (!agent) {
+            ws.send(JSON.stringify({
+              type: "error",
+              error: "No active session. Please start a session first."
+            }));
+            return;
+          }
+
+          const newProvider: ModelProvider = message.modelProvider;
+          agent.setModelProvider(newProvider);
+
+          ws.send(JSON.stringify({
+            type: "model_changed",
+            modelProvider: newProvider,
+            modelName: agent.getModelInfo().name
+          }));
+
+          console.log(`[WebSocket] Model changed to: ${newProvider}`);
         } else if (message.type === "get_session_history") {
           if (!message.sessionId) {
             ws.send(JSON.stringify({
