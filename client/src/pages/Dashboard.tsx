@@ -1,31 +1,11 @@
 import { MetricCard } from "@/components/MetricCard";
-import { AgentCard } from "@/components/AgentCard";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Bot, Wrench, Clock, Plus } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { MessageSquare, Code2, Zap, Clock, Plus } from "lucide-react";
 import { useLocation } from "wouter";
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
-
-  //todo: remove mock functionality
-  const mockAgents = [
-    {
-      id: "1",
-      name: "Customer Support Agent",
-      description: "Handles customer inquiries and support tickets with empathy",
-      provider: "OpenAI",
-      model: "GPT-4",
-      toolCount: 5,
-    },
-    {
-      id: "2",
-      name: "Code Assistant",
-      description: "Helps with code review, debugging, and documentation",
-      provider: "Anthropic",
-      model: "Claude 3.5",
-      toolCount: 8,
-    },
-  ];
 
   return (
     <div className="flex-1 overflow-auto">
@@ -34,59 +14,62 @@ export default function Dashboard() {
           <div>
             <h1 className="text-3xl font-semibold" data-testid="text-page-title">Dashboard</h1>
             <p className="text-muted-foreground mt-1">
-              Overview of your AI agents and activity
+              Coding agent sessions and activity
             </p>
           </div>
-          <Button onClick={() => setLocation("/builder")} data-testid="button-create-agent">
+          <Button onClick={() => setLocation("/chat")} data-testid="button-new-session">
             <Plus className="h-4 w-4 mr-2" />
-            Create Agent
+            New Session
           </Button>
         </div>
 
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
           <MetricCard
-            title="Total Conversations"
-            value="1,284"
-            description="Active conversations"
+            title="Total Sessions"
+            value="0"
+            description="Coding sessions"
             icon={MessageSquare}
-            trend={{ value: 12.5, isPositive: true }}
+            trend={{ value: 0, isPositive: true }}
           />
           <MetricCard
-            title="Active Agents"
-            value="12"
-            description="Configured agents"
-            icon={Bot}
-            trend={{ value: 8.2, isPositive: true }}
+            title="Files Modified"
+            value="0"
+            description="Files changed"
+            icon={Code2}
+            trend={{ value: 0, isPositive: true }}
           />
           <MetricCard
-            title="Total Tools"
-            value="24"
-            description="Available functions"
-            icon={Wrench}
-            trend={{ value: 3.1, isPositive: true }}
+            title="Tool Executions"
+            value="0"
+            description="Tools executed"
+            icon={Zap}
+            trend={{ value: 0, isPositive: true }}
           />
           <MetricCard
-            title="Avg Response Time"
-            value="1.2s"
-            description="Last 24 hours"
+            title="Avg Duration"
+            value="0s"
+            description="Average session"
             icon={Clock}
-            trend={{ value: 5.3, isPositive: false }}
+            trend={{ value: 0, isPositive: false }}
           />
         </div>
 
         <div>
-          <h2 className="text-xl font-semibold mb-4">Recent Agents</h2>
-          <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-            {mockAgents.map((agent) => (
-              <AgentCard
-                key={agent.id}
-                {...agent}
-                onEdit={() => console.log("Edit agent:", agent.id)}
-                onTest={() => setLocation("/playground")}
-                onDelete={() => console.log("Delete agent:", agent.id)}
-              />
-            ))}
-          </div>
+          <h2 className="text-xl font-semibold mb-4">Recent Sessions</h2>
+          <Card>
+            <CardHeader>
+              <CardTitle>No sessions yet</CardTitle>
+              <CardDescription>
+                Start a new coding session to see it here
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button onClick={() => setLocation("/chat")} data-testid="button-start-session">
+                <Plus className="h-4 w-4 mr-2" />
+                Start Coding Session
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

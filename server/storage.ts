@@ -1,154 +1,106 @@
-import { type Agent, type InsertAgent, type Tool, type InsertTool, type Conversation } from "@shared/schema";
+import { type CodingSession, type InsertCodingSession, type Message, type InsertMessage, type ToolExecution, type InsertToolExecution } from "@shared/schema";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
-  // Agent operations
-  getAgent(id: string): Promise<Agent | undefined>;
-  getAllAgents(): Promise<Agent[]>;
-  createAgent(agent: InsertAgent): Promise<Agent>;
-  updateAgent(id: string, agent: Partial<InsertAgent>): Promise<Agent | undefined>;
-  deleteAgent(id: string): Promise<boolean>;
+  // Session operations
+  getSession(id: string): Promise<CodingSession | undefined>;
+  getAllSessions(): Promise<CodingSession[]>;
+  createSession(session: InsertCodingSession): Promise<CodingSession>;
+  updateSession(id: string, session: Partial<InsertCodingSession>): Promise<CodingSession | undefined>;
 
-  // Tool operations
-  getTool(id: string): Promise<Tool | undefined>;
-  getAllTools(): Promise<Tool[]>;
-  createTool(tool: InsertTool): Promise<Tool>;
-  updateTool(id: string, tool: Partial<InsertTool>): Promise<Tool | undefined>;
-  deleteTool(id: string): Promise<boolean>;
+  // Message operations
+  addMessage(message: InsertMessage): Promise<Message>;
+  getMessages(sessionId: string): Promise<Message[]>;
 
-  // Conversation operations
-  getConversation(id: string): Promise<Conversation | undefined>;
-  getConversationsByAgent(agentId: string): Promise<Conversation[]>;
-  createConversation(agentId: string): Promise<Conversation>;
-  updateConversation(id: string, messages: any[], tokenCount: string): Promise<Conversation | undefined>;
-  deleteConversation(id: string): Promise<boolean>;
+  // Tool execution operations
+  logToolExecution(execution: InsertToolExecution): Promise<ToolExecution>;
+  getToolExecutions(sessionId: string): Promise<ToolExecution[]>;
 }
 
 export class MemStorage implements IStorage {
-  private agents: Map<string, Agent>;
-  private tools: Map<string, Tool>;
-  private conversations: Map<string, Conversation>;
+  private sessions: Map<string, CodingSession>;
+  private messages: Map<string, Message>;
+  private toolExecutions: Map<string, ToolExecution>;
 
   constructor() {
-    this.agents = new Map();
-    this.tools = new Map();
-    this.conversations = new Map();
+    this.sessions = new Map();
+    this.messages = new Map();
+    this.toolExecutions = new Map();
   }
 
-  // Agent operations
-  async getAgent(id: string): Promise<Agent | undefined> {
-    return this.agents.get(id);
+  // Session operations
+  async getSession(id: string): Promise<CodingSession | undefined> {
+    return this.sessions.get(id);
   }
 
-  async getAllAgents(): Promise<Agent[]> {
-    return Array.from(this.agents.values());
+  async getAllSessions(): Promise<CodingSession[]> {
+    return Array.from(this.sessions.values());
   }
 
-  async createAgent(insertAgent: InsertAgent): Promise<Agent> {
+  async createSession(insertSession: InsertCodingSession): Promise<CodingSession> {
     const id = randomUUID();
-    const agent: Agent = {
+    const session: CodingSession = {
       id,
-      name: insertAgent.name,
-      description: insertAgent.description || null,
-      systemPrompt: insertAgent.systemPrompt,
-      provider: insertAgent.provider,
-      model: insertAgent.model,
-      temperature: insertAgent.temperature || null,
-      tools: insertAgent.tools || [],
+      userId: insertSession.userId || null,
       createdAt: new Date(),
+      status: insertSession.status || "active",
+      projectPath: insertSession.projectPath || null,
     };
-    this.agents.set(id, agent);
-    return agent;
+    this.sessions.set(id, session);
+    return session;
   }
 
-  async updateAgent(id: string, updates: Partial<InsertAgent>): Promise<Agent | undefined> {
-    const agent = this.agents.get(id);
-    if (!agent) return undefined;
+  async updateSession(id: string, updates: Partial<InsertCodingSession>): Promise<CodingSession | undefined> {
+    const session = this.sessions.get(id);
+    if (!session) return undefined;
 
-    const updatedAgent = { ...agent, ...updates };
-    this.agents.set(id, updatedAgent);
-    return updatedAgent;
+    const updatedSession = { ...session, ...updates };
+    this.sessions.set(id, updatedSession);
+    return updatedSession;
   }
 
-  async deleteAgent(id: string): Promise<boolean> {
-    return this.agents.delete(id);
-  }
-
-  // Tool operations
-  async getTool(id: string): Promise<Tool | undefined> {
-    return this.tools.get(id);
-  }
-
-  async getAllTools(): Promise<Tool[]> {
-    return Array.from(this.tools.values());
-  }
-
-  async createTool(insertTool: InsertTool): Promise<Tool> {
+  // Message operations
+  async addMessage(insertMessage: InsertMessage): Promise<Message> {
     const id = randomUUID();
-    const tool: Tool = {
+    const message: Message = {
       id,
-      name: insertTool.name,
-      description: insertTool.description,
-      parameters: insertTool.parameters || {},
-      implementation: insertTool.implementation || null,
-      createdAt: new Date(),
+      sessionId: insertMessage.sessionId,
+      role: insertMessage.role,
+      content: insertMessage.content,
+      timestamp: new Date(),
+      tokens: insertMessage.tokens || null,
     };
-    this.tools.set(id, tool);
-    return tool;
+    this.messages.set(id, message);
+    return message;
   }
 
-  async updateTool(id: string, updates: Partial<InsertTool>): Promise<Tool | undefined> {
-    const tool = this.tools.get(id);
-    if (!tool) return undefined;
-
-    const updatedTool = { ...tool, ...updates };
-    this.tools.set(id, updatedTool);
-    return updatedTool;
+  async getMessages(sessionId: string): Promise<Message[]> {
+    return Array.from(this.messages.values())
+      .filter(msg => msg.sessionId === sessionId)
+      .sort((a, b) => (a.timestamp?.getTime() || 0) - (b.timestamp?.getTime() || 0));
   }
 
-  async deleteTool(id: string): Promise<boolean> {
-    return this.tools.delete(id);
-  }
-
-  // Conversation operations
-  async getConversation(id: string): Promise<Conversation | undefined> {
-    return this.conversations.get(id);
-  }
-
-  async getConversationsByAgent(agentId: string): Promise<Conversation[]> {
-    return Array.from(this.conversations.values()).filter(
-      (conv) => conv.agentId === agentId
-    );
-  }
-
-  async createConversation(agentId: string): Promise<Conversation> {
+  // Tool execution operations
+  async logToolExecution(insertExecution: InsertToolExecution): Promise<ToolExecution> {
     const id = randomUUID();
-    const conversation: Conversation = {
+    const execution: ToolExecution = {
       id,
-      agentId,
-      messages: [],
-      tokenCount: "0",
-      createdAt: new Date(),
+      sessionId: insertExecution.sessionId,
+      toolName: insertExecution.toolName,
+      input: insertExecution.input || null,
+      output: insertExecution.output || null,
+      duration: insertExecution.duration || null,
+      success: insertExecution.success,
+      timestamp: new Date(),
     };
-    this.conversations.set(id, conversation);
-    return conversation;
+    this.toolExecutions.set(id, execution);
+    return execution;
   }
 
-  async updateConversation(
-    id: string,
-    messages: any[],
-    tokenCount: string
-  ): Promise<Conversation | undefined> {
-    const conversation = this.conversations.get(id);
-    if (!conversation) return undefined;
-
-    const updated = { ...conversation, messages, tokenCount };
-    this.conversations.set(id, updated);
-    return updated;
-  }
-
-  async deleteConversation(id: string): Promise<boolean> {
-    return this.conversations.delete(id);
+  async getToolExecutions(sessionId: string): Promise<ToolExecution[]> {
+    return Array.from(this.toolExecutions.values())
+      .filter(exec => exec.sessionId === sessionId)
+      .sort((a, b) => (a.timestamp?.getTime() || 0) - (b.timestamp?.getTime() || 0));
   }
 }
 
