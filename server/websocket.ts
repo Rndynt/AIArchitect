@@ -28,23 +28,35 @@ export function setupWebSocket(httpServer: HTTPServer) {
         console.log(`[WebSocket] Received message type: ${message.type}`);
 
         if (message.type === "start_session") {
-          const session = await storage.createSession({
-            userId: message.userId || null,
-            status: "active",
-            projectPath: message.projectPath || null
-          });
+          try {
+            const session = await storage.createSession({
+              userId: message.userId || null,
+              status: "active",
+              projectPath: message.projectPath || null
+            });
 
-          const modelProvider: ModelProvider = message.modelProvider || "anthropic";
-          currentSessionId = session.id;
-          agent = new CodingAgent(session.id, modelProvider);
+            if (!session || !session.id) {
+              throw new Error("Failed to create session");
+            }
 
-          ws.send(JSON.stringify({
-            type: "session_started",
-            sessionId: session.id,
-            modelProvider
-          }));
+            const modelProvider: ModelProvider = message.modelProvider || "anthropic";
+            currentSessionId = session.id;
+            agent = new CodingAgent(session.id, modelProvider);
 
-          console.log(`[WebSocket] Session started: ${session.id} with model: ${modelProvider}`);
+            ws.send(JSON.stringify({
+              type: "session_started",
+              sessionId: session.id,
+              modelProvider
+            }));
+
+            console.log(`[WebSocket] Session started: ${session.id} with model: ${modelProvider}`);
+          } catch (sessionError: any) {
+            console.error("[WebSocket] Error creating session:", sessionError);
+            ws.send(JSON.stringify({
+              type: "error",
+              error: `Failed to create session: ${sessionError.message}`
+            }));
+          }
         } else if (message.type === "resume_session") {
           if (!message.sessionId) {
             ws.send(JSON.stringify({
