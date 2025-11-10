@@ -1,6 +1,6 @@
 import { type CodingSession, type InsertCodingSession, type Message, type InsertMessage, type ToolExecution, type InsertToolExecution, codingSessions, messages, toolExecutions } from "@shared/schema";
 import { randomUUID } from "crypto";
-import { eq, desc, count } from "drizzle-orm";
+import { eq, desc, asc, count } from "drizzle-orm";
 import type { Database } from "./db";
 
 export interface IStorage {
@@ -197,12 +197,25 @@ export class DatabaseStorage implements IStorage {
   async getMessages(sessionId: string): Promise<Message[]> {
     try {
       const db = await this.getDb();
-      return await db.select().from(messages)
-        .where(eq(messages.sessionId, sessionId))
-        .orderBy(messages.timestamp);
+      const result = await db.select().from(messages)
+        .where(eq(messages.sessionId, sessionId));
+      
+      // Defensive null check - always return array
+      if (!result || !Array.isArray(result)) {
+        console.warn('[DatabaseStorage] getMessages returned null/invalid for session:', sessionId);
+        return [];
+      }
+      
+      // Sort in memory instead of in the database
+      return result.sort((a, b) => {
+        const aTime = a.timestamp?.getTime() || 0;
+        const bTime = b.timestamp?.getTime() || 0;
+        return aTime - bTime;
+      });
     } catch (error: any) {
       console.error('[DatabaseStorage] Error getting messages:', error);
-      throw error;
+      // Return empty array instead of throwing to prevent crashes
+      return [];
     }
   }
 
@@ -220,12 +233,25 @@ export class DatabaseStorage implements IStorage {
   async getToolExecutions(sessionId: string): Promise<ToolExecution[]> {
     try {
       const db = await this.getDb();
-      return await db.select().from(toolExecutions)
-        .where(eq(toolExecutions.sessionId, sessionId))
-        .orderBy(toolExecutions.timestamp);
+      const result = await db.select().from(toolExecutions)
+        .where(eq(toolExecutions.sessionId, sessionId));
+      
+      // Defensive null check - always return array
+      if (!result || !Array.isArray(result)) {
+        console.warn('[DatabaseStorage] getToolExecutions returned null/invalid for session:', sessionId);
+        return [];
+      }
+      
+      // Sort in memory instead of in the database
+      return result.sort((a, b) => {
+        const aTime = a.timestamp?.getTime() || 0;
+        const bTime = b.timestamp?.getTime() || 0;
+        return aTime - bTime;
+      });
     } catch (error: any) {
       console.error('[DatabaseStorage] Error getting tool executions:', error);
-      throw error;
+      // Return empty array instead of throwing to prevent crashes
+      return [];
     }
   }
 
