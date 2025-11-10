@@ -1,5 +1,7 @@
-import { type CodingSession, type InsertCodingSession, type Message, type InsertMessage, type ToolExecution, type InsertToolExecution } from "@shared/schema";
+import { type CodingSession, type InsertCodingSession, type Message, type InsertMessage, type ToolExecution, type InsertToolExecution, codingSessions, messages, toolExecutions } from "@shared/schema";
 import { randomUUID } from "crypto";
+import { eq, desc, count } from "drizzle-orm";
+import type { Database } from "./db";
 
 export interface IStorage {
   // Session operations
@@ -15,6 +17,13 @@ export interface IStorage {
   // Tool execution operations
   logToolExecution(execution: InsertToolExecution): Promise<ToolExecution>;
   getToolExecutions(sessionId: string): Promise<ToolExecution[]>;
+  
+  // Statistics
+  getSessionStats(): Promise<{
+    totalSessions: number;
+    totalMessages: number;
+    totalToolExecutions: number;
+  }>;
 }
 
 export class MemStorage implements IStorage {
@@ -102,6 +111,155 @@ export class MemStorage implements IStorage {
       .filter(exec => exec.sessionId === sessionId)
       .sort((a, b) => (a.timestamp?.getTime() || 0) - (b.timestamp?.getTime() || 0));
   }
+
+  async getSessionStats() {
+    return {
+      totalSessions: this.sessions.size,
+      totalMessages: this.messages.size,
+      totalToolExecutions: this.toolExecutions.size,
+    };
+  }
 }
 
-export const storage = new MemStorage();
+export class DatabaseStorage implements IStorage {
+  private dbPromise: Promise<Database>;
+
+  constructor() {
+    this.dbPromise = import("./db")
+      .then(module => module.db)
+      .catch(error => {
+        console.error('[DatabaseStorage] Failed to load database module:', error);
+        throw error;
+      });
+  }
+
+  private async getDb(): Promise<Database> {
+    return await this.dbPromise;
+  }
+
+  async getSession(id: string): Promise<CodingSession | undefined> {
+    try {
+      const db = await this.getDb();
+      const result = await db.select().from(codingSessions).where(eq(codingSessions.id, id));
+      return result[0];
+    } catch (error: any) {
+      console.error('[DatabaseStorage] Error getting session:', error);
+      throw error;
+    }
+  }
+
+  async getAllSessions(): Promise<CodingSession[]> {
+    try {
+      const db = await this.getDb();
+      return await db.select().from(codingSessions).orderBy(desc(codingSessions.createdAt));
+    } catch (error: any) {
+      console.error('[DatabaseStorage] Error getting all sessions:', error);
+      throw error;
+    }
+  }
+
+  async createSession(insertSession: InsertCodingSession): Promise<CodingSession> {
+    try {
+      const db = await this.getDb();
+      const result = await db.insert(codingSessions).values(insertSession).returning();
+      return result[0];
+    } catch (error: any) {
+      console.error('[DatabaseStorage] Error creating session:', error);
+      throw error;
+    }
+  }
+
+  async updateSession(id: string, updates: Partial<InsertCodingSession>): Promise<CodingSession | undefined> {
+    try {
+      const db = await this.getDb();
+      const result = await db.update(codingSessions)
+        .set(updates)
+        .where(eq(codingSessions.id, id))
+        .returning();
+      return result[0];
+    } catch (error: any) {
+      console.error('[DatabaseStorage] Error updating session:', error);
+      throw error;
+    }
+  }
+
+  async addMessage(insertMessage: InsertMessage): Promise<Message> {
+    try {
+      const db = await this.getDb();
+      const result = await db.insert(messages).values(insertMessage).returning();
+      return result[0];
+    } catch (error: any) {
+      console.error('[DatabaseStorage] Error adding message:', error);
+      throw error;
+    }
+  }
+
+  async getMessages(sessionId: string): Promise<Message[]> {
+    try {
+      const db = await this.getDb();
+      return await db.select().from(messages)
+        .where(eq(messages.sessionId, sessionId))
+        .orderBy(messages.timestamp);
+    } catch (error: any) {
+      console.error('[DatabaseStorage] Error getting messages:', error);
+      throw error;
+    }
+  }
+
+  async logToolExecution(insertExecution: InsertToolExecution): Promise<ToolExecution> {
+    try {
+      const db = await this.getDb();
+      const result = await db.insert(toolExecutions).values(insertExecution).returning();
+      return result[0];
+    } catch (error: any) {
+      console.error('[DatabaseStorage] Error logging tool execution:', error);
+      throw error;
+    }
+  }
+
+  async getToolExecutions(sessionId: string): Promise<ToolExecution[]> {
+    try {
+      const db = await this.getDb();
+      return await db.select().from(toolExecutions)
+        .where(eq(toolExecutions.sessionId, sessionId))
+        .orderBy(toolExecutions.timestamp);
+    } catch (error: any) {
+      console.error('[DatabaseStorage] Error getting tool executions:', error);
+      throw error;
+    }
+  }
+
+  async getSessionStats() {
+    try {
+      const db = await this.getDb();
+      const [sessionCountResult, messageCountResult, toolExecutionCountResult] = await Promise.all([
+        db.select({ value: count() }).from(codingSessions),
+        db.select({ value: count() }).from(messages),
+        db.select({ value: count() }).from(toolExecutions),
+      ]);
+
+      return {
+        totalSessions: Number(sessionCountResult[0]?.value || 0),
+        totalMessages: Number(messageCountResult[0]?.value || 0),
+        totalToolExecutions: Number(toolExecutionCountResult[0]?.value || 0),
+      };
+    } catch (error: any) {
+      console.error('[DatabaseStorage] Error getting session stats:', error);
+      throw error;
+    }
+  }
+}
+
+function createStorage(): IStorage {
+  const useDatabase = process.env.USE_DATABASE !== 'false';
+  
+  if (useDatabase) {
+    console.log('[Storage] Using DatabaseStorage (PostgreSQL)');
+    return new DatabaseStorage();
+  } else {
+    console.log('[Storage] Using MemStorage (in-memory)');
+    return new MemStorage();
+  }
+}
+
+export const storage = createStorage();
