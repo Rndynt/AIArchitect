@@ -2,7 +2,8 @@ import OpenAI from "openai";
 import type { ChatCompletionMessageParam, ChatCompletionTool } from "openai/resources/chat/completions";
 
 export const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.MEGALLM_API_KEY || process.env.OPENAI_API_KEY,
+  baseURL: process.env.MEGALLM_API_KEY ? "https://ai.megallm.io/v1" : undefined,
 });
 
 export const OPENAI_MODELS = {

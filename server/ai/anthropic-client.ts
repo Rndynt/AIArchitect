@@ -1,7 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 
 export const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  apiKey: process.env.MEGALLM_API_KEY || process.env.ANTHROPIC_API_KEY,
+  baseURL: process.env.MEGALLM_API_KEY ? "https://ai.megallm.io/v1" : undefined,
 });
 
 export const CODING_AGENT_MODEL = "claude-3-5-sonnet-20241022";
