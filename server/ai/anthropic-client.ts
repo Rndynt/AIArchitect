@@ -5,7 +5,19 @@ export const anthropic = new Anthropic({
   baseURL: process.env.MEGALLM_API_KEY ? "https://ai.megallm.io/v1" : undefined,
 });
 
-export const CODING_AGENT_MODEL = "claude-3-5-sonnet-20241022";
+export const ANTHROPIC_MODELS = {
+  "claude-3-5-sonnet-20241022": "Claude 3.5 Sonnet",
+  "claude-haiku-4-5-20251001": "Claude Haiku 4.5",
+  "claude-3-opus-20240229": "Claude 3 Opus",
+  "claude-3-sonnet-20240229": "Claude 3 Sonnet",
+  "claude-3-haiku-20240307": "Claude 3 Haiku"
+} as const;
+
+export let CODING_AGENT_MODEL = process.env.ANTHROPIC_MODEL || "claude-3-5-sonnet-20241022";
+
+export function setAnthropicModel(model: string) {
+  CODING_AGENT_MODEL = model;
+}
 
 export const SYSTEM_PROMPT = `You are an expert AI coding agent with deep knowledge of software development, architecture, and best practices. Your role is to help users build, debug, and improve software projects through autonomous code execution.
 

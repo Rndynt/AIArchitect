@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
-export type ModelProvider = "anthropic" | "openai";
+export type ModelProvider = "anthropic" | "openai" | "gemini";
+export type ModelName = string;
 
 interface WebSocketMessage {
   type: "session_started" | "session_resumed" | "thinking" | "tool_use" | "tool_result" | "response" | "complete" | "error" | "sessions_list" | "session_history" | "model_changed" | "model_info";
@@ -65,12 +66,13 @@ export function useWebSocket() {
     }
   }, []);
 
-  const startSession = useCallback((userId?: string, projectPath?: string, modelProvider?: ModelProvider) => {
+  const startSession = useCallback((userId?: string, projectPath?: string, modelProvider?: ModelProvider, modelName?: ModelName) => {
     sendMessage({
       type: "start_session",
       userId,
       projectPath,
-      modelProvider: modelProvider || "anthropic"
+      modelProvider: modelProvider || "anthropic",
+      modelName
     });
   }, [sendMessage]);
 
@@ -82,10 +84,11 @@ export function useWebSocket() {
     });
   }, [sendMessage]);
 
-  const changeModel = useCallback((modelProvider: ModelProvider) => {
+  const changeModel = useCallback((modelProvider: ModelProvider, modelName?: ModelName) => {
     sendMessage({
       type: "change_model",
-      modelProvider
+      modelProvider,
+      modelName
     });
   }, [sendMessage]);
 

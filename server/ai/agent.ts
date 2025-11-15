@@ -20,14 +20,14 @@ export class CodingAgent {
   private maxIterations: number = 50;
   private modelProvider: ModelProviderService;
 
-  constructor(sessionId: string, provider: ModelProvider = "anthropic") {
+  constructor(sessionId: string, provider: ModelProvider = "anthropic", modelName?: string) {
     this.sessionId = sessionId;
     this.conversationHistory = [];
-    this.modelProvider = new ModelProviderService(provider);
+    this.modelProvider = new ModelProviderService(provider, modelName);
   }
 
-  setModelProvider(provider: ModelProvider) {
-    this.modelProvider.setProvider(provider);
+  setModelProvider(provider: ModelProvider, modelName?: string) {
+    this.modelProvider.setProvider(provider, modelName);
   }
 
   getModelInfo() {

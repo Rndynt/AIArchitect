@@ -40,8 +40,9 @@ export function setupWebSocket(httpServer: HTTPServer) {
             }
 
             const modelProvider: ModelProvider = message.modelProvider || "anthropic";
+            const modelName: string | undefined = message.modelName;
             currentSessionId = session.id;
-            agent = new CodingAgent(session.id, modelProvider);
+            agent = new CodingAgent(session.id, modelProvider, modelName);
 
             ws.send(JSON.stringify({
               type: "session_started",
@@ -76,8 +77,9 @@ export function setupWebSocket(httpServer: HTTPServer) {
           }
 
           const modelProvider: ModelProvider = message.modelProvider || "anthropic";
+          const modelName: string | undefined = message.modelName;
           currentSessionId = session.id;
-          agent = new CodingAgent(session.id, modelProvider);
+          agent = new CodingAgent(session.id, modelProvider, modelName);
           await agent.loadFromSession();
 
           ws.send(JSON.stringify({
@@ -125,7 +127,8 @@ export function setupWebSocket(httpServer: HTTPServer) {
           }
 
           const newProvider: ModelProvider = message.modelProvider;
-          agent.setModelProvider(newProvider);
+          const modelName: string | undefined = message.modelName;
+          agent.setModelProvider(newProvider, modelName);
 
           ws.send(JSON.stringify({
             type: "model_changed",
@@ -133,7 +136,7 @@ export function setupWebSocket(httpServer: HTTPServer) {
             modelName: agent.getModelInfo().name
           }));
 
-          console.log(`[WebSocket] Model changed to: ${newProvider}`);
+          console.log(`[WebSocket] Model changed to: ${newProvider}${modelName ? ` (${modelName})` : ''}`);
         } else if (message.type === "get_session_history") {
           if (!message.sessionId) {
             ws.send(JSON.stringify({

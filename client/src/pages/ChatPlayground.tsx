@@ -33,8 +33,9 @@ export default function ChatPlayground() {
   const [displayMessages, setDisplayMessages] = useState<DisplayMessage[]>([]);
   const [input, setInput] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
-  const [currentModel, setCurrentModel] = useState<ModelProvider>("anthropic");
-  const [currentModelName, setCurrentModelName] = useState<string>("Claude 3.5 Sonnet");
+  const [currentModel, setCurrentModel] = useState<ModelProvider>("openai");
+  const [currentModelName, setCurrentModelName] = useState<string>("gpt-5.1");
+  const [currentModelKey, setCurrentModelKey] = useState<string>("openai:gpt-5.1");
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [apiError, setApiError] = useState<ApiError | null>(null);
   const [fileOperations, setFileOperations] = useState<FileOperation[]>([]);
@@ -250,11 +251,29 @@ export default function ChatPlayground() {
     startSession(undefined, undefined, currentModel);
   };
 
-  const handleModelChange = (newModel: ModelProvider) => {
+  const handleModelChange = (value: string) => {
     if (sessionId && !isProcessing) {
-      changeModel(newModel);
+      const [provider, ...nameParts] = value.split(':');
+      const modelName = nameParts.join(':');
+      const newModel = provider as ModelProvider;
+      
+      changeModel(newModel, modelName);
       setCurrentModel(newModel);
+      setCurrentModelName(modelName);
+      setCurrentModelKey(value);
     }
+  };
+  
+  const getModelDisplayName = (value: string): string => {
+    const modelNames: Record<string, string> = {
+      "openai:gpt-5.1": "GPT-5.1",
+      "openai:gpt-4o": "GPT-4o",
+      "anthropic:claude-haiku-4-5-20251001": "Claude Haiku 4.5",
+      "anthropic:claude-3-5-sonnet-20241022": "Claude 3.5 Sonnet",
+      "openai:qwen/qwen3-next-80b-a3b-instruct": "Qwen3 Next 80B",
+      "openai:deepseek-ai/deepseek-v3.1": "DeepSeek v3.1",
+    };
+    return modelNames[value] || value;
   };
 
   return (
@@ -266,7 +285,7 @@ export default function ChatPlayground() {
               <h1 className="text-2xl font-semibold" data-testid="text-page-title">Chat Playground</h1>
               <Badge variant="outline" data-testid="badge-model-name" className="gap-1">
                 <Bot className="h-3 w-3" />
-                {currentModelName}
+                {getModelDisplayName(currentModelKey)}
               </Badge>
             </div>
             <div className="flex items-center gap-2">
@@ -280,16 +299,20 @@ export default function ChatPlayground() {
                 <Menu className="h-4 w-4" />
               </Button>
               <Select 
-                value={currentModel} 
-                onValueChange={(value) => handleModelChange(value as ModelProvider)}
+                value={currentModelKey} 
+                onValueChange={handleModelChange}
                 disabled={isProcessing}
               >
-                <SelectTrigger className="w-48" data-testid="select-model">
+                <SelectTrigger className="w-64" data-testid="select-model">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="anthropic">Claude 3.5 Sonnet</SelectItem>
-                  <SelectItem value="openai">GPT-4 Turbo</SelectItem>
+                  <SelectItem value="openai:gpt-5.1">GPT-5.1</SelectItem>
+                  <SelectItem value="openai:gpt-4o">GPT-4o</SelectItem>
+                  <SelectItem value="anthropic:claude-haiku-4-5-20251001">Claude Haiku 4.5</SelectItem>
+                  <SelectItem value="anthropic:claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</SelectItem>
+                  <SelectItem value="openai:qwen/qwen3-next-80b-a3b-instruct">Qwen3 Next 80B</SelectItem>
+                  <SelectItem value="openai:deepseek-ai/deepseek-v3.1">DeepSeek v3.1</SelectItem>
                 </SelectContent>
               </Select>
               <Badge 

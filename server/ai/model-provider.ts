@@ -2,8 +2,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import type { ChatCompletionMessageParam, ChatCompletionTool } from "openai/resources/chat/completions";
 import { anthropic, CODING_AGENT_MODEL, SYSTEM_PROMPT } from "./anthropic-client";
-import { openai, OPENAI_MODEL, OPENAI_MODELS } from "./openai-client";
+import { openai, OPENAI_MODEL, OPENAI_MODELS, setOpenAIModel } from "./openai-client";
 import { gemini, GEMINI_MODEL, GEMINI_MODELS } from "./gemini-client";
+import { setAnthropicModel, ANTHROPIC_MODELS } from "./anthropic-client";
 import { toolDefinitions as anthropicTools } from "./tool-definitions";
 
 export type ModelProvider = "anthropic" | "openai" | "gemini";
@@ -201,13 +202,32 @@ function convertAnthropicMessagesToGemini(messages: Anthropic.MessageParam[]) {
 
 export class ModelProviderService {
   private provider: ModelProvider;
+  private modelName?: string;
 
-  constructor(provider: ModelProvider = "anthropic") {
+  constructor(provider: ModelProvider = "anthropic", modelName?: string) {
     this.provider = provider;
+    this.modelName = modelName;
+    
+    if (modelName) {
+      if (provider === "openai") {
+        setOpenAIModel(modelName);
+      } else if (provider === "anthropic") {
+        setAnthropicModel(modelName);
+      }
+    }
   }
 
-  setProvider(provider: ModelProvider) {
+  setProvider(provider: ModelProvider, modelName?: string) {
     this.provider = provider;
+    this.modelName = modelName;
+    
+    if (modelName) {
+      if (provider === "openai") {
+        setOpenAIModel(modelName);
+      } else if (provider === "anthropic") {
+        setAnthropicModel(modelName);
+      }
+    }
   }
 
   async generateResponse(
@@ -345,11 +365,11 @@ export class ModelProviderService {
 
   getProviderName(): string {
     if (this.provider === "anthropic") {
-      return "Claude 3.5 Sonnet";
+      return ANTHROPIC_MODELS[CODING_AGENT_MODEL as keyof typeof ANTHROPIC_MODELS] || this.modelName || CODING_AGENT_MODEL;
     } else if (this.provider === "openai") {
-      return OPENAI_MODELS[OPENAI_MODEL as keyof typeof OPENAI_MODELS] || OPENAI_MODEL;
+      return OPENAI_MODELS[OPENAI_MODEL as keyof typeof OPENAI_MODELS] || this.modelName || OPENAI_MODEL;
     } else {
-      return GEMINI_MODELS[GEMINI_MODEL as keyof typeof GEMINI_MODELS] || GEMINI_MODEL;
+      return GEMINI_MODELS[GEMINI_MODEL as keyof typeof GEMINI_MODELS] || this.modelName || GEMINI_MODEL;
     }
   }
 
